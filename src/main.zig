@@ -9,7 +9,8 @@ pub fn main() !void {
     var stdinReader = std.fs.File.stdin().readerStreaming(&stdinBuffer); //Reads from buffer into reader
     const stdin = &stdinReader.interface; // pointer to interface in reader struct
 
-    const command = stdin.takeDelimiter('\n'); // new line as delimiter
+    const command = try stdin.takeDelimiter('\n'); // takes user input from keyboard
+    // with new line as delimiter
 
-    try stdout.print("{s}: command not found", .{command.?});
+    try stdout.print("{s}: command not found\n", .{command.?});
 }
