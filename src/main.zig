@@ -25,8 +25,9 @@ pub fn main() !void {
 }
 
 pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !void {
-    const consoleCommand = try allocator.alloc(u8, 100);
+    const consoleCommand = try allocator.alloc(u8, 140);
     var index: usize = 0;
+    var commandText: []const u8 = undefined;
     for (command) |char| {
         if (char != ' ') {
             consoleCommand[index] = char;
@@ -36,13 +37,18 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
             break;
         }
     }
-    if (std.mem.eql(u8, consoleCommand[0..index], "echo")) {
-        try stdout.print("{s}\n", .{command[index + 1 ..]});
+    if (command.len >= index) commandText = command[index..];
+    if (!isType(consoleCommand[0..index])) {
+        try stdout.print("{s}: not found\n", .{consoleCommand[0..index]});
         return;
-    } else if (std.mem.eql(u8, consoleCommand[0..index], "type") and isType(command[index + 1 ..])) {
-        try stdout.print("{s} is a shell builtin\n", .{command[index + 1 ..]});
+    }
+    if (std.mem.eql(u8, consoleCommand[0..index], "echo")) {
+        try stdout.print("{s}\n", .{commandText});
+        return;
+    } else if (std.mem.eql(u8, consoleCommand[0..index], "type") and isType(commandText)) {
+        try stdout.print("{s} is a shell builtin\n", .{commandText});
     } else {
-        try stdout.print("{s}: not found\n", .{command[index + 1 ..]});
+        try stdout.print("{s}: not found\n", .{commandText});
     }
     allocator.free(consoleCommand);
 }
