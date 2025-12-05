@@ -2,6 +2,7 @@ const std = @import("std");
 
 var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
 const stdout = &stdout_writer.interface;
+const buitinConsoleCommands: [3][]const u8 = .{ "type", "exit", "echo" };
 
 pub fn main() !void {
     var stdinBuffer: [4096]u8 = undefined; // sets a array of 4096 u8s as a buffer
@@ -47,7 +48,8 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
 }
 
 pub fn isType(command: []const u8) bool {
-    if (std.mem.eql(u8, command, "echo") or std.mem.eql(u8, command, "exit")) return true;
-
+    for (buitinConsoleCommands) |builtinCommand| {
+        if (std.mem.eql(u8, builtinCommand, command)) return true;
+    }
     return false;
 }
