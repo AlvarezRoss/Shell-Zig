@@ -37,7 +37,7 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
             break;
         }
     }
-    if (command.len >= index) commandText = command[index..];
+    if (command.len > index + 1) commandText = command[index + 1 ..];
     if (!isType(consoleCommand[0..index])) {
         try stdout.print("{s}: not found\n", .{consoleCommand[0..index]});
         return;
