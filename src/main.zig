@@ -39,7 +39,7 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
         try stdout.print("{s}\n", .{command[index + 1 ..]});
         return;
     } else if (std.mem.eql(u8, consoleCommand[0..index], "type") and isType(command[index + 1 ..])) {
-        try stdout.print("{s}: is a shell builtin\n", .{command[index + 1 ..]});
+        try stdout.print("{s} is a shell builtin\n", .{command[index + 1 ..]});
     } else {
         try stdout.print("{s}: command not found\n", .{command[index + 1 ..]});
     }
