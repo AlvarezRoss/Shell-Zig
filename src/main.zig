@@ -68,7 +68,7 @@ pub fn TypeCommand(commandText: []const u8) !void {
         while (paths.next()) |path| {
             const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
             defer allocator.free(fullPath);
-            const file = std.fs.openFileAbsolute(fullPath, .{ .mode = .read_only }) catch continue;
+            const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
             _ = file;
             try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
             return;
