@@ -45,12 +45,38 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
     if (std.mem.eql(u8, consoleCommand[0..index], "echo")) {
         try stdout.print("{s}\n", .{commandText});
         return;
-    } else if (std.mem.eql(u8, consoleCommand[0..index], "type") and isType(commandText)) {
-        try stdout.print("{s} is a shell builtin\n", .{commandText});
+    } else if (std.mem.eql(u8, consoleCommand[0..index], "type")) {
+        try TypeCommand(commandText);
     } else {
         try stdout.print("{s}: not found\n", .{commandText});
     }
     allocator.free(consoleCommand);
+}
+
+pub fn TypeCommand(commandText: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var EnvMap = try std.process.getEnvMap(allocator); // This gives me a map of all enviornment variables
+
+    const evnPath = EnvMap.get("PATH") orelse return error.OptionalValueIsNull; // gets the path variables
+    var paths = std.mem.splitScalar(u8, evnPath, ':'); // separets all paths
+    if (isType(commandText)) {
+        try stdout.print("{s} is a shell builtin\n", .{commandText});
+        return;
+    } else {
+        while (paths.next()) |path| {
+            const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
+            defer allocator.free(fullPath);
+            const file = std.fs.openFileAbsolute(fullPath, .{ .mode = .read_only }) catch continue;
+            _ = file;
+            try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
+            return;
+        }
+    }
+
+    try stdout.print("{s} not found\n", .{commandText});
+    return;
 }
 
 pub fn isType(command: []const u8) bool {
