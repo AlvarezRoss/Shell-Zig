@@ -77,12 +77,15 @@ pub fn TypeCommand(commandText: []const u8) !void {
             defer walker.deinit();
             while (try walker.next()) |file| {
                 if (std.mem.eql(u8, file.basename, commandText)) {
-                    const dir = std.fs.accessAbsolute(path, .{ .mode = .read_only }) catch {
+                    const dir: std.fs.File = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch {
                         continue;
                     };
-                    _ = dir;
-                    try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
-                    return;
+                    const stat = try dir.stat();
+                    const canBeExecuted = (stat.mode & 0o100) != 0;
+                    if (canBeExecuted) {
+                        try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
+                        return;
+                    }
                 }
             }
         }
