@@ -83,7 +83,7 @@ pub fn TypeCommand(commandText: []const u8) !void {
                     const stat = fl.stat() catch {
                         continue;
                     };
-                    if ((stat.mode & std.os.linux.S.IRUSR) == 0) {
+                    if ((stat.mode & std.os.linux.S.IXUSR) == 0) {
                         continue;
                     }
 
