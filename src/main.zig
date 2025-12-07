@@ -58,7 +58,6 @@ pub fn TypeCommand(commandText: []const u8) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     var EnvMap = try std.process.getEnvMap(allocator); // This gives me a map of all enviornment variables
-
     const evnPath = EnvMap.get("PATH") orelse return error.OptionalValueIsNull; // gets the path variables
     var paths = std.mem.splitScalar(u8, evnPath, ':'); // separets all paths
     if (isType(commandText)) {
@@ -68,10 +67,20 @@ pub fn TypeCommand(commandText: []const u8) !void {
         while (paths.next()) |path| {
             const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
             defer allocator.free(fullPath);
-            const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
-            _ = file;
-            try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
-            return;
+            //const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
+            //_ = file;
+            var cwd = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
+                continue;
+            }; // gets a handler of the dir and sets iterate to true if error movest to the next folder//path
+            defer cwd.close();
+            var walker = try cwd.walk(allocator); // walker is used to iterate over the elements isnide a folder
+            defer walker.deinit();
+            while (try walker.next()) |file| {
+                if (std.mem.eql(u8, file.basename, commandText)) {
+                    try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
+                    return;
+                }
+            }
         }
     }
 
