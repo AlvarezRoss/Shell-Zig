@@ -80,13 +80,11 @@ pub fn TypeCommand(commandText: []const u8) !void {
                     const fl: std.fs.File = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch {
                         continue;
                     };
-                    const stat = fl.stat() catch {
+                    _ = fl;
+                    const access = std.posix.access(fullPath, std.posix.X_OK) catch {
                         continue;
                     };
-                    if ((stat.mode & std.os.linux.S.IXUSR) == 0) {
-                        continue;
-                    }
-
+                    _ = access;
                     try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
                     return;
                 }
