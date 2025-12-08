@@ -3,6 +3,7 @@ const std = @import("std");
 var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
 const stdout = &stdout_writer.interface;
 const buitinConsoleCommands: [3][]const u8 = .{ "type", "exit", "echo" };
+const Errors = error{NotAccesableExe};
 
 pub fn main() !void {
     var stdinBuffer: [4096]u8 = undefined; // sets a array of 4096 u8s as a buffer
@@ -55,45 +56,50 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
 
 pub fn TypeCommand(commandText: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
     const allocator = arena.allocator();
-    var EnvMap = try std.process.getEnvMap(allocator); // This gives me a map of all enviornment variables
-    const evnPath = EnvMap.get("PATH") orelse return error.OptionalValueIsNull; // gets the path variables
-    var paths = std.mem.splitScalar(u8, evnPath, ':'); // separets all paths
+    //var EnvMap = try std.process.getEnvMap(allocator); // This gives me a map of all enviornment variables
+    //const evnPath = EnvMap.get("PATH") orelse return error.OptionalValueIsNull; // gets the path variables
+    //var paths = std.mem.splitScalar(u8, evnPath, ':'); // separets all paths
     if (isType(commandText)) {
         try stdout.print("{s} is a shell builtin\n", .{commandText});
+        arena.deinit();
         return;
     } else {
-        while (paths.next()) |path| {
-            const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
-            defer allocator.free(fullPath);
-            //const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
-            //_ = file;
-            var cwd = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
-                continue;
-            }; // gets a handler of the dir and sets iterate to true if error movest to the next folder//path
-            defer cwd.close();
-            var walker = try cwd.walk(allocator); // walker is used to iterate over the elements isnide a folder
-            defer walker.deinit();
-            while (try walker.next()) |file| {
-                if (std.mem.eql(u8, file.basename, commandText)) {
-                    const fl: std.fs.File = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch {
-                        continue;
-                    };
-                    _ = fl;
-                    const access = std.posix.access(fullPath, std.posix.X_OK) catch {
-                        continue;
-                    };
-                    _ = access;
-                    try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
-                    return;
-                }
-            }
-        }
-    }
+        // while (paths.next()) |path| {
+        //     const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
+        //     defer allocator.free(fullPath);
+        //     //const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
+        //     //_ = file;
+        //     var cwd = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
+        //         continue;
+        //     }; // gets a handler of the dir and sets iterate to true if error movest to the next folder//path
+        //     defer cwd.close();
+        //     var walker = try cwd.walk(allocator); // walker is used to iterate over the elements isnide a folder
+        //     defer walker.deinit();
+        //     while (try walker.next()) |file| {
+        //         if (std.mem.eql(u8, file.basename, commandText)) {
+        //             const fl: std.fs.File = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch {
+        //                 continue;
+        //             };
+        //             _ = fl;
+        //             const access = std.posix.access(fullPath, std.posix.X_OK) catch {
+        //                 continue;
+        //             };
+        //             _ = access;
+        //             try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
+        //             return;
+        //         }
+        //     }
 
-    try stdout.print("{s} not found\n", .{commandText});
-    return;
+        const fullExePath = CheckExe(allocator, commandText) catch {
+            try stdout.print("{s} not found\n", .{commandText});
+            arena.deinit();
+            return;
+        };
+
+        try stdout.print("{s} is {s}\n", .{ commandText, fullExePath });
+        arena.deinit();
+    }
 }
 
 pub fn isType(command: []const u8) bool {
@@ -101,4 +107,19 @@ pub fn isType(command: []const u8) bool {
         if (std.mem.eql(u8, builtinCommand, command)) return true;
     }
     return false;
+}
+
+pub fn CheckExe(allocator: std.mem.Allocator, command: []const u8) ![]u8 {
+    var envMap = try std.process.getEnvMap(allocator);
+    const envPaths = envMap.get("PATH") orelse return error.OptionalValueNull;
+    var paths = std.mem.splitScalar(u8, envPaths, ':');
+    while (paths.next()) |path| {
+        const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, command });
+        const access = std.posix.access(fullPath, std.posix.X_OK) catch {
+            continue;
+        };
+        _ = access;
+        return fullPath;
+    }
+    return Errors.NotAccesableExe;
 }
