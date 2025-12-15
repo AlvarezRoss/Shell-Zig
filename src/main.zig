@@ -11,9 +11,10 @@ pub fn main() !void {
     const stdin = &stdinReader.interface; // pointer to interface in reader struct
     // takes user input from keyboard
 
-    var allocatorBuffer: [1024]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&allocatorBuffer);
-    const allocator = fba.allocator();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
     while (true) {
         try stdout.print("$ ", .{});
         const commandLine = try stdin.takeDelimiter('\n'); // takes user input
@@ -40,7 +41,14 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
     }
     if (command.len > index + 1) commandText = command[index + 1 ..];
     if (!isType(consoleCommand[0..index])) {
-        try stdout.print("{s}: not found\n", .{consoleCommand[0..index]});
+        const exePath: []const u8 = CheckExe(allocator, consoleCommand[0..index]) catch {
+            try stdout.print("{s}: not found\n", .{consoleCommand[0..index]});
+            return;
+        };
+        _ = exePath;
+        ExecuteExe(allocator, command) catch {
+            return;
+        };
         return;
     }
     if (std.mem.eql(u8, consoleCommand[0..index], "echo")) {
@@ -57,40 +65,11 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
 pub fn TypeCommand(commandText: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = arena.allocator();
-    //var EnvMap = try std.process.getEnvMap(allocator); // This gives me a map of all enviornment variables
-    //const evnPath = EnvMap.get("PATH") orelse return error.OptionalValueIsNull; // gets the path variables
-    //var paths = std.mem.splitScalar(u8, evnPath, ':'); // separets all paths
     if (isType(commandText)) {
         try stdout.print("{s} is a shell builtin\n", .{commandText});
         arena.deinit();
         return;
     } else {
-        // while (paths.next()) |path| {
-        //     const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, commandText }); // joins both strings with a / in the middle
-        //     defer allocator.free(fullPath);
-        //     //const file = std.fs.openFileAbsolute(fullPath, .{}) catch continue;
-        //     //_ = file;
-        //     var cwd = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
-        //         continue;
-        //     }; // gets a handler of the dir and sets iterate to true if error movest to the next folder//path
-        //     defer cwd.close();
-        //     var walker = try cwd.walk(allocator); // walker is used to iterate over the elements isnide a folder
-        //     defer walker.deinit();
-        //     while (try walker.next()) |file| {
-        //         if (std.mem.eql(u8, file.basename, commandText)) {
-        //             const fl: std.fs.File = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch {
-        //                 continue;
-        //             };
-        //             _ = fl;
-        //             const access = std.posix.access(fullPath, std.posix.X_OK) catch {
-        //                 continue;
-        //             };
-        //             _ = access;
-        //             try stdout.print("{s} is {s}\n", .{ commandText, fullPath });
-        //             return;
-        //         }
-        //     }
-
         const fullExePath = CheckExe(allocator, commandText) catch {
             try stdout.print("{s} not found\n", .{commandText});
             arena.deinit();
@@ -109,17 +88,34 @@ pub fn isType(command: []const u8) bool {
     return false;
 }
 
-pub fn CheckExe(allocator: std.mem.Allocator, command: []const u8) ![]u8 {
-    var envMap = try std.process.getEnvMap(allocator);
-    const envPaths = envMap.get("PATH") orelse return error.OptionalValueNull;
-    var paths = std.mem.splitScalar(u8, envPaths, ':');
+pub fn CheckExe(allocator: std.mem.Allocator, command: []const u8) ![]const u8 {
+    var envMap = try std.process.getEnvMap(allocator); // Gets Enviornment variables map
+    const envPaths = envMap.get("PATH") orelse return error.OptionalValueNull; // gets the PATH variable
+    var paths = std.mem.splitScalar(u8, envPaths, ':'); // Iterator over the paths in the PATH variable
     while (paths.next()) |path| {
-        const fullPath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, command });
-        const access = std.posix.access(fullPath, std.posix.X_OK) catch {
+        const fullPath: []const u8 = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ path, command }); // concats full path
+        const access = std.posix.access(fullPath, std.posix.X_OK) catch { // tries to acces continues if error
             continue;
         };
         _ = access;
         return fullPath;
     }
     return Errors.NotAccesableExe;
+}
+
+pub fn ExecuteExe(allocator: std.mem.Allocator, args: []const u8) !void {
+    var argv = std.mem.splitScalar(u8, args, ' ');
+    var argList = try std.ArrayListUnmanaged([]const u8).initCapacity(allocator, 32);
+    defer argList.deinit(allocator);
+    while (argv.next()) |arg| {
+        try argList.append(allocator, arg);
+    }
+
+    var newProgram = std.process.Child.init(argList.items, allocator);
+    newProgram.stdout = std.fs.File.stdout();
+    newProgram.stdin = std.fs.File.stdin();
+    newProgram.stderr = std.fs.File.stderr();
+    _ = try newProgram.spawnAndWait();
+
+    return;
 }
