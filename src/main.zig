@@ -2,7 +2,7 @@ const std = @import("std");
 
 var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
 const stdout = &stdout_writer.interface;
-const buitinConsoleCommands: [3][]const u8 = .{ "type", "exit", "echo" };
+const buitinConsoleCommands: [4][]const u8 = .{ "type", "exit", "echo", "pwd" };
 const Errors = error{NotAccesableExe};
 
 pub fn main() !void {
@@ -56,6 +56,9 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
         return;
     } else if (std.mem.eql(u8, consoleCommand[0..index], "type")) {
         try TypeCommand(commandText);
+    } else if (std.mem.eql(u8, consoleCommand[0..index], "pwd")) {
+        const cwd = try std.fs.cwd().realpathAlloc(allocator, ".");
+        try stdout.print("{s}\n", .{cwd});
     } else {
         try stdout.print("{s}: not found\n", .{commandText});
     }
