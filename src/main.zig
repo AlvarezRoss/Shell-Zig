@@ -2,8 +2,9 @@ const std = @import("std");
 
 var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
 const stdout = &stdout_writer.interface;
-const buitinConsoleCommands: [4][]const u8 = .{ "type", "exit", "echo", "pwd" };
+const buitinConsoleCommands: [5][]const u8 = .{ "type", "exit", "echo", "pwd", "cd" };
 const Errors = error{NotAccesableExe};
+const commands = enum { type, exit, echo, pwd, cd };
 
 pub fn main() !void {
     var stdinBuffer: [4096]u8 = undefined; // sets a array of 4096 u8s as a buffer
@@ -28,6 +29,7 @@ pub fn main() !void {
 
 pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !void {
     const consoleCommand = try allocator.alloc(u8, 140);
+    defer allocator.free(consoleCommand);
     var index: usize = 0;
     var commandText: []const u8 = undefined;
     for (command) |char| {
@@ -59,10 +61,13 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
     } else if (std.mem.eql(u8, consoleCommand[0..index], "pwd")) {
         const cwd = try std.fs.cwd().realpathAlloc(allocator, ".");
         try stdout.print("{s}\n", .{cwd});
+        return;
+    } else if (std.mem.eql(u8, consoleCommand[0..index], "cd")) {
+        try std.posix.chdir(commandText);
+        return;
     } else {
         try stdout.print("{s}: not found\n", .{commandText});
     }
-    allocator.free(consoleCommand);
 }
 
 pub fn TypeCommand(commandText: []const u8) !void {
@@ -88,6 +93,7 @@ pub fn isType(command: []const u8) bool {
     for (buitinConsoleCommands) |builtinCommand| {
         if (std.mem.eql(u8, builtinCommand, command)) return true;
     }
+
     return false;
 }
 
