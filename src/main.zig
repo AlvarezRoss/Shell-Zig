@@ -63,7 +63,9 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
         try stdout.print("{s}\n", .{cwd});
         return;
     } else if (std.mem.eql(u8, consoleCommand[0..index], "cd")) {
-        try std.posix.chdir(commandText);
+        std.posix.chdir(commandText) catch {
+            try stdout.print("{s}: {s}: No such file or directory\n", .{ consoleCommand[0..index], commandText });
+        };
         return;
     } else {
         try stdout.print("{s}: not found\n", .{commandText});
