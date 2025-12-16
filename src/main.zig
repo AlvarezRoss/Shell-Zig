@@ -60,6 +60,7 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
         try TypeCommand(commandText);
     } else if (std.mem.eql(u8, consoleCommand[0..index], "pwd")) {
         const cwd = try std.fs.cwd().realpathAlloc(allocator, ".");
+        defer allocator.free(cwd);
         try stdout.print("{s}\n", .{cwd});
         return;
     } else if (std.mem.eql(u8, consoleCommand[0..index], "cd")) {
@@ -127,6 +128,58 @@ pub fn ExecuteExe(allocator: std.mem.Allocator, args: []const u8) !void {
     newProgram.stdin = std.fs.File.stdin();
     newProgram.stderr = std.fs.File.stderr();
     _ = try newProgram.spawnAndWait();
+
+    return;
+}
+
+pub fn ChangeDirectory(path: []const u8, allocator: std.mem.Allocator) !void {
+    const cwd: []const u8 = try std.fs.cwd().realpathAlloc(allocator, "."); // Gets current working directory
+    defer allocator.free(cwd);
+
+    const pathSplit = std.mem.splitScalar(u8, path, '/');
+    // These two variables will be used in the case of ../ to calculate how many leves we have to go up the tree
+    var levels: i32 = 0;
+    const numLeves: i32 = pathSplit.rest().len;
+    // THis will be the diference betweeen numLevels and levels
+    var levesLeftInTree: i32 = 0;
+
+    while (pathSplit.next()) |pathSection| {
+        if (std.mem.eql(u8, pathSection, "..")) {
+            levels += 1;
+            continue;
+        }
+
+        if (std.mem.eql(u8, pathSection, ".")) {
+            const newPath: []const u8 = try std.mem.concat(allocator, u8, pathSection, cwd[1..]);
+            defer allocator.free(newPath);
+            std.posix.chdir(newPath);
+            return;
+        }
+        if (levels != 0 and !std.mem.eql(u8, pathSection, "..")) {
+            break;
+        } else {
+            try std.posix.chdir(path);
+            return;
+        }
+    }
+    levesLeftInTree = numLeves - levels;
+    if (levels >= numLeves) {
+        const root: []const u8 = pathSplit.first();
+        try std.posix.chdir(root);
+        return;
+    } else {
+        var newPath: []const u8 = undefined;
+        while (pathSplit.next()) |pth| {
+            if (pathSplit.index >= levesLeftInTree) {
+                break;
+            } else {
+                newPath = try std.fmt.allocPrint(allocator, "/{s}", pth); //This concats a new getion of the path with a / before it to the form the full final path
+            }
+        }
+        try std.posix.chdir(newPath);
+        allocator.free(newPath);
+        return;
+    }
 
     return;
 }
