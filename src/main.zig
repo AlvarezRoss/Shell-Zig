@@ -4,7 +4,6 @@ var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
 const stdout = &stdout_writer.interface;
 const buitinConsoleCommands: [5][]const u8 = .{ "type", "exit", "echo", "pwd", "cd" };
 const Errors = error{NotAccesableExe};
-const commands = enum { type, exit, echo, pwd, cd };
 
 pub fn main() !void {
     var stdinBuffer: [4096]u8 = undefined; // sets a array of 4096 u8s as a buffer
@@ -64,7 +63,7 @@ pub fn ParseConsoleCommand(allocator: std.mem.Allocator, command: []const u8) !v
         try stdout.print("{s}\n", .{cwd});
         return;
     } else if (std.mem.eql(u8, consoleCommand[0..index], "cd")) {
-        std.posix.chdir(commandText) catch {
+        ChangeDir(allocator, commandText) catch {
             try stdout.print("{s}: {s}: No such file or directory\n", .{ consoleCommand[0..index], commandText });
         };
         return;
@@ -130,4 +129,21 @@ pub fn ExecuteExe(allocator: std.mem.Allocator, args: []const u8) !void {
     _ = try newProgram.spawnAndWait();
 
     return;
+}
+
+pub fn ChangeDir(allocator: std.mem.Allocator, path: []const u8) !void {
+    if (std.mem.eql(u8, path, "~")) {
+        var map = try std.process.getEnvMap(allocator);
+        defer map.deinit();
+        const envPath = map.get("HOME") orelse return error.OptionalValueNull;
+        std.posix.chdir(envPath) catch {
+            return error.PathError;
+        };
+        return;
+    } else {
+        std.posix.chdir(path) catch {
+            return error.PathError;
+        };
+        return;
+    }
 }
